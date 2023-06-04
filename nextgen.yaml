@@ -1,0 +1,208 @@
+pipeline:
+  name: Test
+  identifier: Test
+  projectIdentifier: Default_Project_1664993394354
+  orgIdentifier: default
+  tags: {}
+  stages:
+    - stage:
+        name: Stage 1
+        identifier: Stage_1
+        description: ""
+        type: Deployment
+        spec:
+          deploymentType: Ssh
+          service:
+            serviceRef: ec2
+          environment:
+            environmentRef: <+input>
+            deployToAll: false
+            environmentInputs: <+input>
+            serviceOverrideInputs: <+input>
+            infrastructureDefinitions: <+input>
+          execution:
+            steps:
+              - step:
+                  type: Command
+                  name: Deploy
+                  identifier: Deploy
+                  spec:
+                    onDelegate: false
+                    environmentVariables: []
+                    outputVariables: []
+                    commandUnits:
+                      - identifier: docker_stack_ls
+                        name: docker stack ls
+                        type: Script
+                        spec:
+                          shell: Bash
+                          source:
+                            type: Harness
+                            spec:
+                              file: /commands/stack-ls
+                  timeout: 10m
+            rollbackSteps:
+              - step:
+                  name: Rollback
+                  identifier: Rollback
+                  type: Command
+                  timeout: 10m
+                  strategy:
+                    repeat:
+                      items: <+stage.output.hosts>
+                  spec:
+                    onDelegate: false
+                    environmentVariables: []
+                    outputVariables: []
+                    commandUnits:
+                      - identifier: Stop_Service_Rollback
+                        name: Stop Service Rollback
+                        type: Script
+                        spec:
+                          workingDirectory: $HOME/<+service.name>/<+env.name>/tomcat/bin
+                          shell: Bash
+                          source:
+                            type: Inline
+                            spec:
+                              script: "# [ -f ./shutdown.sh ] && ./shutdown.sh  || true"
+                      - identifier: Process_Stopped_Rollback
+                        name: Process Stopped Rollback
+                        type: Script
+                        spec:
+                          workingDirectory: $HOME/<+service.name>/<+env.name>/tomcat/bin
+                          shell: Bash
+                          source:
+                            type: Inline
+                            spec:
+                              script: |-
+                                # i=0
+                                # while [ "$i" -lt 30 ]
+                                # do
+                                #   pgrep -f "\-Dcatalina.home=$HOME/<+service.name>/<+env.name>/tomcat"
+                                #   rc=$?
+                                #   if [ "$rc" -eq 0 ]
+                                #   then
+                                #     sleep 1
+                                #     i=$((i+1))
+                                #   else
+                                #     exit 0
+                                #   fi
+                                # done
+                                # exit 1
+                      - identifier: Port_Cleared_Rollback
+                        name: Port Cleared Rollback
+                        type: Script
+                        spec:
+                          workingDirectory: $HOME/<+service.name>/<+env.name>/tomcat/bin
+                          shell: Bash
+                          source:
+                            type: Inline
+                            spec:
+                              script: |-
+                                # server_xml="$HARNESS_RUNTIME_PATH/tomcat/conf/server.xml"
+                                # if [ -f "$server_xml" ]
+                                # then
+                                #   port=$(grep "<Connector[ ]*port=\"[0-9]*\"[ ]*protocol=\"HTTP/1.1\"" "$server_xml" |cut -d '"' -f2)
+                                # nc -v -z -w 5 localhost $port
+                                # else
+                                #   echo "Tomcat config file("$server_xml") does not exist.. port check failed."
+                                # exit 1
+                                # fi
+                      - identifier: Setup_Runtime_Paths_Rollback
+                        name: Setup Runtime Paths Rollback
+                        type: Script
+                        spec:
+                          shell: Bash
+                          source:
+                            type: Inline
+                            spec:
+                              script: |-
+                                # Execute as root and pass environment variables
+                                # su -p -
+
+                                # Execute as root via user credentials (with root privileges)
+                                # sudo -E su -p -
+
+                                # Creating runtime, backup and staging folders:
+
+                                mkdir -p $HOME/<+service.name>/<+env.name>/runtime
+                                mkdir -p $HOME/<+service.name>/<+env.name>/backup
+                                mkdir -p $HOME/<+service.name>/<+env.name>/staging
+                                mkdir -p $HOME/<+service.name>/<+env.name>/tomcat/bin
+                      - identifier: Copy_Artifact_Rollback
+                        name: Copy Artifact Rollback
+                        type: Copy
+                        spec:
+                          sourceType: Artifact
+                          destinationPath: $HOME/<+service.name>/<+env.name>
+                      - identifier: Copy_Config_Rollback
+                        name: Copy Config Rollback
+                        type: Copy
+                        spec:
+                          sourceType: Config
+                          destinationPath: $HOME/<+service.name>/<+env.name>
+                      - identifier: Start_Service_Rollback
+                        name: Start Service Rollback
+                        type: Script
+                        spec:
+                          workingDirectory: $HOME/<+service.name>/<+env.name>/tomcat/bin
+                          shell: Bash
+                          source:
+                            type: Inline
+                            spec:
+                              script: "# ./startup.sh"
+                      - identifier: Process_Running_Rollback
+                        name: Process Running Rollback
+                        type: Script
+                        spec:
+                          workingDirectory: $HOME/<+service.name>/<+env.name>/tomcat/bin
+                          shell: Bash
+                          source:
+                            type: Inline
+                            spec:
+                              script: |-
+                                # i=0
+                                # while [ "$i" -lt 30 ]
+                                # do
+                                #     pgrep -f "\-Dcatalina.home=$HOME/<+service.name>/<+env.name>/tomcat"
+                                #     rc=$?
+                                #     if [ "$rc" -eq 0 ]
+                                #     then
+                                #         exit 0
+                                #         sleep 1
+                                #         i=$((i+1))
+                                #     else
+                                #         sleep 1
+                                #         i=$((i+1))
+                                #     fi
+                                # done
+                                # exit 1
+                      - identifier: Port_Listening_Rollback
+                        name: Port Listening Rollback
+                        type: Script
+                        spec:
+                          workingDirectory: $HOME/<+service.name>/<+env.name>/tomcat/bin
+                          shell: Bash
+                          source:
+                            type: Inline
+                            spec:
+                              script: |-
+                                # if [ -f "$server_xml" ]
+                                # then
+                                #   port=$(grep "<Connector[ ]*port=\"[0-9]*\"[ ]*protocol=\"HTTP/1.1\"" "$server_xml" |cut -d '"' -f2)
+                                #   nc -v -z -w 5 localhost $port
+                                #   rc=$?
+                                #   if [ "$rc" -eq 0 ]
+                                #   then
+                                #     exit 1
+                                #   fi
+                                # else
+                                #   echo "Tomcat config file("$server_xml") does not exist.. skipping port check."
+                                # fi
+        tags: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
